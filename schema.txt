@@ -1,0 +1,20 @@
+project/
+│
+├── backend/
+│   ├── app.py
+│   ├── db.py
+│   ├── auth_routes.py
+│   ├── models.py
+│   ├── security.py
+│   └── init_db.py
+│
+├── frontend/
+│   └── streamlit_app.py
+│
+├── attacks/
+│   ├── bruteforce.py
+│   ├── enumeration.py
+│   └── reset_attack.py
+│
+└── database/
+    └── auth.db
