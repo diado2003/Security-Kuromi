@@ -4,6 +4,9 @@ import requests
 
 dt = datetime.now()
 
+if "client" not in st.session_state:
+    st.session_state["client"] = requests.Session()
+
 if "failed_login_attempts" not in st.session_state:
     st.session_state.failed_login_attempts = 0
 if "show_forgot_password" not in st.session_state:
@@ -54,6 +57,7 @@ st.markdown(
 
 
 with st.form("login", clear_on_submit=False):
+    email = st.text_input("Email (for register)")
     username = st.text_input("Username", key="login_input_username")
     password = st.text_input("Password", type="password", key="login_input_password")
     role = st.selectbox("Role (for register)", ["USER", "ADMIN"], index=0)
@@ -67,8 +71,8 @@ with st.form("login", clear_on_submit=False):
         registered = st.form_submit_button("Register")
 
     if submitted:
-        response = requests.post("http://localhost:5000/login",
-                                 json={"username": username, "password": password})
+        response = st.session_state["client"].post("http://localhost:5000/login",
+                                                    json={"username": username, "password": password})
         if response.json()["success"]:
             st.session_state.username = response.json().get("username", username)
             st.session_state.role = response.json().get("role", "USER")
@@ -89,8 +93,8 @@ with st.form("login", clear_on_submit=False):
         st.caption(f"Failed login attempts: {st.session_state.failed_login_attempts}/3")
 
     if registered:
-        response = requests.post("http://localhost:5000/register",
-                                 json={"username": username, "password": password, "role": role, "admin_secret": admin_secret})
+        response = st.session_state["client"].post("http://localhost:5000/register",
+                                                   json={"email": email, "username": username, "password": password, "role": role, "admin_secret": admin_secret})
         if response.json()["success"]:
             st.success("Account creat! Te poti loga acum.")
         else:
@@ -106,7 +110,7 @@ if st.session_state.show_forgot_password:
         )
         forgot_submit = st.form_submit_button("Generate reset token")
         if forgot_submit:
-            response = requests.post(
+            response = st.session_state["client"].post(
                 "http://localhost:5000/forgot-password",
                 json={"username": forgot_username},
             )
@@ -127,7 +131,7 @@ if st.session_state.show_forgot_password:
                 st.error("Mai intai apasa Generate reset token.")
                 st.stop()
 
-            response = requests.post(
+            response = st.session_state["client"].post(
                 "http://localhost:5000/reset-password",
                 json={"token": reset_token, "new_password": new_password},
             )
@@ -166,6 +170,11 @@ with c1:
     if "username" in st.session_state:
         logged_out = st.button("Logout")
         if logged_out:
+            try:
+                st.session_state["client"].post("http://127.0.0.1:5000/logout", timeout=5)
+            except requests.RequestException:
+                pass
+
             keys_to_clear = [
                 "username",
                 "role",
@@ -181,6 +190,7 @@ with c1:
             ]
             for key in keys_to_clear:
                 st.session_state.pop(key, None)
+
             st.rerun()
 
 c1, c2, c3, c4 = st.columns(4)

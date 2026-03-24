@@ -1,8 +1,9 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 import sqlite3
 import os
 
 app = Flask(__name__)
+app.secret_key = "super-secret-key"
 ADMIN_REGISTER_SECRET = os.getenv("ADMIN_REGISTER_SECRET", "admin123")
 
 
@@ -17,6 +18,7 @@ def ensure_schema():
         """
         CREATE TABLE IF NOT EXISTS users(
             id INTEGER PRIMARY KEY,
+            email TEXT,
             username TEXT UNIQUE,
             password TEXT,
             role TEXT NOT NULL DEFAULT 'USER',
@@ -27,6 +29,8 @@ def ensure_schema():
 
     # Migrate older DBs that do not have the latest columns.
     columns = [row[1] for row in cursor.execute("PRAGMA table_info(users)").fetchall()]
+    if "email" not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN email TEXT")
     if "role" not in columns:
         cursor.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'USER'")
     if "reset_token" not in columns:
@@ -37,6 +41,13 @@ def ensure_schema():
 
 
 ensure_schema()
+
+@app.route("/protected", methods=["GET"])
+def protected():
+    if "user" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    return jsonify({"message": f"Hello {session['user']}"})
 
 @app.route("/login", methods=["POST"])
 def login():
@@ -51,6 +62,7 @@ def login():
     conn.close()
 
     if user:
+        session["user"] = user[0]
         return jsonify({"success": True, "username": user[0], "role": user[1]})
 
     return jsonify({"success": False})
@@ -58,6 +70,7 @@ def login():
 @app.route("/register", methods=["POST"])
 def register():
     data = request.json or {}
+    email = (data.get("email") or "").strip().lower()
     username = (data.get("username") or "").strip()
     password = data.get("password") or ""
     role = (data.get("role") or "USER").upper()
@@ -69,15 +82,20 @@ def register():
     if role == "ADMIN" and admin_secret != ADMIN_REGISTER_SECRET:
         return jsonify({"success": False, "error": "Parola de admin este gresita."}), 403
 
-    if not username or not password:
-        return jsonify({"success": False, "error": "Username si parola sunt obligatorii."}), 400
+    if not email or not username or not password:
+        return jsonify({"success": False, "error": "Email, username si parola sunt obligatorii."}), 400
 
     conn = get_conn()
     cursor = conn.cursor()
     try:
+        cursor.execute("SELECT id FROM users WHERE email=?", (email,))
+        existing_email = cursor.fetchone()
+        if existing_email:
+            return jsonify({"success": False, "error": "Email already exists."}), 409
+
         cursor.execute(
-            "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-            (username, password, role),
+            "INSERT INTO users (email, username, password, role) VALUES (?, ?, ?, ?)",
+            (email, username, password, role),
         )
         conn.commit()
         return jsonify({"success": True, "role": role})
@@ -135,5 +153,10 @@ def reset_password():
     conn.close()
     return jsonify({"success": True})
 
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return jsonify({"success": True})
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, use_reloader=False, port=5000)
