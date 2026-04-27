@@ -1,8 +1,14 @@
 import streamlit as st
 from datetime import datetime
 import requests
+import os
 
 dt = datetime.now()
+KUROMI_IMAGE = os.path.join(os.path.dirname(__file__), "kuromi.png")
+
+if os.path.exists(KUROMI_IMAGE):
+    st.sidebar.image(KUROMI_IMAGE, use_container_width=True)
+    st.sidebar.caption("Kuromi is watching your security posture.")
 
 if "client" not in st.session_state:
     st.session_state["client"] = requests.Session()

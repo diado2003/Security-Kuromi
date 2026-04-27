@@ -6,4 +6,6 @@ bcrypt==5.0.0
 streamlit-confetti-0.1.0
 whois==1.20240129.2
 ipinfo==5.6.0
+colorama==0.4.6
+python-whois-0.9.6
 
