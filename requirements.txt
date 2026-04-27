@@ -8,4 +8,4 @@ whois==1.20240129.2
 ipinfo==5.6.0
 colorama==0.4.6
 python-whois-0.9.6
-
+keyboard==0.13.5

@@ -8,10 +8,10 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from tools_creation.fast_port import scan_open_ports
-from tools_creation.geo_ip import get_geo_ip_details
-from tools_creation.domain_whois import get_domain_whois
-from tools_creation.subdomain import discover_subdomains, save_discovered_subdomains
+from tools.fast_port import scan_open_ports
+from tools.geo_ip import get_geo_ip_details
+from tools.domain_whois import get_domain_whois
+from tools.subdomain import discover_subdomains, save_discovered_subdomains
 
 KUROMI_IMAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "kuromi.png"))
 if os.path.exists(KUROMI_IMAGE):

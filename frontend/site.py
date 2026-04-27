@@ -5,6 +5,27 @@ import os
 
 dt = datetime.now()
 KUROMI_IMAGE = os.path.join(os.path.dirname(__file__), "kuromi.png")
+API_BASE_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:5000")
+
+
+def api_post(path: str, payload: dict):
+    try:
+        response = st.session_state["client"].post(
+            f"{API_BASE_URL}{path}",
+            json=payload,
+            timeout=8,
+        )
+        try:
+            body = response.json()
+        except ValueError:
+            body = {}
+
+        return response, body, None
+    except requests.RequestException:
+        return None, None, (
+            "Backend-ul nu este disponibil pe "
+            f"{API_BASE_URL}. Porneste serverul Flask din backend/app.py."
+        )
 
 if os.path.exists(KUROMI_IMAGE):
     st.sidebar.image(KUROMI_IMAGE, use_container_width=True)
@@ -192,11 +213,17 @@ with st.form("login", clear_on_submit=False):
         registered = st.form_submit_button("Register")
 
     if submitted:
-        response = st.session_state["client"].post("http://localhost:5000/login",
-                                                    json={"username": username, "password": password})
-        if response.json()["success"]:
-            st.session_state.username = response.json().get("username", username)
-            st.session_state.role = response.json().get("role", "USER")
+        response, body, request_error = api_post(
+            "/login",
+            {"username": username, "password": password},
+        )
+        if request_error:
+            st.error(request_error)
+            st.stop()
+
+        if body.get("success"):
+            st.session_state.username = body.get("username", username)
+            st.session_state.role = body.get("role", "USER")
             st.session_state.failed_login_attempts = 0
             st.session_state.show_forgot_password = False
             st.session_state.last_reset_token = ""
@@ -223,9 +250,21 @@ with st.form("login", clear_on_submit=False):
         st.caption(f"Failed login attempts: {st.session_state.failed_login_attempts}/3")
 
     if registered:
-        response = st.session_state["client"].post("http://localhost:5000/register",
-                                                   json={"email": email, "username": username, "password": password, "role": role, "admin_secret": admin_secret})
-        if response.json()["success"]:
+        response, body, request_error = api_post(
+            "/register",
+            {
+                "email": email,
+                "username": username,
+                "password": password,
+                "role": role,
+                "admin_secret": admin_secret,
+            },
+        )
+        if request_error:
+            st.error(request_error)
+            st.stop()
+
+        if body.get("success"):
             st.session_state.failed_login_attempts = 0
             st.session_state.show_forgot_password = False
             st.session_state.last_reset_token = ""
@@ -240,7 +279,7 @@ with st.form("login", clear_on_submit=False):
             st.balloons()
             st.rerun()
         else:
-            st.error(response.json().get("error", "Eroare la register."))
+            st.error(body.get("error", "Eroare la register."))
 
 if st.session_state.show_forgot_password:
     with st.form("forgot_password", clear_on_submit=False):
@@ -252,11 +291,14 @@ if st.session_state.show_forgot_password:
         )
         forgot_submit = st.form_submit_button("Generate reset token")
         if forgot_submit:
-            response = st.session_state["client"].post(
-                "http://localhost:5000/forgot-password",
-                json={"username": forgot_username},
+            response, body, request_error = api_post(
+                "/forgot-password",
+                {"username": forgot_username},
             )
-            body = response.json()
+            if request_error:
+                st.error(request_error)
+                st.stop()
+
             if body.get("success"):
                 st.session_state.last_reset_token = body.get("reset_token", "")
                 st.success("Reset token generat. Acum seteaza parola noua mai jos.")
@@ -273,11 +315,14 @@ if st.session_state.show_forgot_password:
                 st.error("Mai intai apasa Generate reset token.")
                 st.stop()
 
-            response = st.session_state["client"].post(
-                "http://localhost:5000/reset-password",
-                json={"token": reset_token, "new_password": new_password},
+            response, body, request_error = api_post(
+                "/reset-password",
+                {"token": reset_token, "new_password": new_password},
             )
-            body = response.json()
+            if request_error:
+                st.error(request_error)
+                st.stop()
+
             if body.get("success"):
                 st.session_state.pending_login_username = st.session_state.get("forgot_username", "")
                 st.session_state.pending_login_password = new_password
@@ -333,7 +378,7 @@ with c1:
         logged_out = st.button("Logout")
         if logged_out:
             try:
-                st.session_state["client"].post("http://127.0.0.1:5000/logout", timeout=5)
+                st.session_state["client"].post(f"{API_BASE_URL}/logout", timeout=5)
             except requests.RequestException:
                 pass
 
