@@ -1,0 +1,27 @@
+Ethical hacking in python
+
+Chapter 1 - Information Gathering
+
+1. Extracting Domain Information
+2. Extracting Ip address geolocation
+3. Port scanning n enumeration
+
+1.1 How to do it 
+WHOIS is a query and response protocol often used for querying
+databases that store registered domain names. 
+We can use the python-whois library to do that in Python.
+
+1.2 Scanning Subdomains:
+Finding subdomains of a particular website lets you explore its whole domain
+infrastructure. The technique we will use here is a dictionary attack; in other words, we will test
+all common subdomain names of that particular domain. Whenever we receive a
+response from the server, that's an indicator for us that the subdomain is alive.
+
+Codul lui imi dadea mie probleme: 
+    TimeoutError: [WinError 10060] A connection attempt failed because the connected party 
+    did not properly respond after a period of time, or established connection failed because
+    connected host has failed to respond
+    During handling of the above exception, another exception occurred.
+Asadar i-am adaugat un timeout de 5s sa nu mai crape degeaba. Nu conta 1 subdomain cat sa treaca prin toate cele 100 de variante.
+
+
