@@ -1,0 +1,53 @@
+Forensic Investigations
+
+1.1 Extracting Metadata from Files
+-> pikepdf library
+-> sys module to get the filename from the command-line arguments
+
+Am mai adaugat o functie sa scoata output-urile frumos: 
+    /Author : Editor
+    /Producer : Microsoft® Word for Microsoft 365
+    /ModDate : D:20260226222654+02'00'
+    /Creator : Microsoft® Word for Microsoft 365
+    /CreationDate : D:20260226222654+02'00'
+
+1.2 Extracting Image Metadata
+
+Devices such as digital cameras, smartphones, and scanners use the EXIF
+standard to save images or audio files. This standard contains many valuable
+tags to extract, which can be helpful for forensic investigation, such as the make,
+model of the device, the exact date and time of image creation, and even the GPS
+information on some devices.
+
+-> Pillow 
+
+Filename: metadata.png
+Image Size: (769, 301)
+Image Height: 301
+Image Width: 769
+Image Format: PNG
+Image Mode: RGB
+Image is Animated: False
+Frames in Image: 1
+Orientation: 1
+
+Filename: image.jpg
+Image Size: (5312, 2988)
+Image Height: 2988
+Image Width: 5312
+Image Format: JPEG
+Image Mode: RGB
+Image is Animated: False
+Frames in Image: 1
+ImageWidth: 5312
+ImageLength: 2988
+ResolutionUnit: 2
+ExifOffset: 226
+Make: samsung
+Model: SM-G920F
+Software: G920FXXS4DPI4
+Orientation: 1
+DateTime: 2016:11:10 19:33:22
+YCbCrPositioning: 1
+XResolution: 72.0
+YResolution: 72.0

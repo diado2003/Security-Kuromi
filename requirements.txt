@@ -9,3 +9,5 @@ ipinfo==5.6.0
 colorama==0.4.6
 python-whois-0.9.6
 keyboard==0.13.5
+pikepdf==10.5.1
+pillow==11.2.1
