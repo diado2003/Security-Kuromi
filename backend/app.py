@@ -6,6 +6,7 @@ import secrets
 import hashlib
 import time
 from datetime import datetime, timedelta
+from typing import Optional
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "super-secret-key-change-me")
@@ -13,12 +14,15 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "super-secret-key-change-me")
 ADMIN_REGISTER_SECRET = os.getenv("ADMIN_REGISTER_SECRET", "admin123")
 RESET_TOKEN_TTL_MINUTES = 15
 FORGOT_RESPONSE_DELAY_SECONDS = 0.35
+LOGIN_RESPONSE_DELAY_SECONDS = 0.45
 MAX_FAILED_ATTEMPTS = 5
 LOCK_WINDOW_MINUTES = 15
 app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["SESSION_COOKIE_SECURE"] = False  
+app.config["SESSION_COOKIE_SECURE"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=20)
+
+DUMMY_BCRYPT_HASH = bcrypt.hashpw(b"invalid-password", bcrypt.gensalt()).decode("utf-8")
 
 
 def is_bcrypt_hash(value: str) -> bool:
@@ -34,7 +38,7 @@ def hash_reset_token(token: str) -> str:
 
 
 def now_utc() -> datetime:
-    return datetime()
+    return datetime.utcnow()
 
 
 def verify_password(stored_password, candidate_password: str) -> bool:
@@ -93,6 +97,25 @@ def record_failed_login(cursor: sqlite3.Cursor, user_id: int, ip_address: str) -
 
 def clear_failed_logins(cursor: sqlite3.Cursor, user_id: int) -> None:
     cursor.execute("DELETE FROM audit_logs WHERE action='failed_login' AND resource_id=?", (user_id,))
+
+
+def audit_event(
+    cursor: sqlite3.Cursor,
+    action: str,
+    user_id: Optional[int] = None,
+    resource_id: Optional[int] = None,
+    ip_address: Optional[str] = None,
+) -> None:
+    cursor.execute(
+        "INSERT INTO audit_logs (user_id, action, resource_id, ip_address) VALUES (?, ?, ?, ?)",
+        (user_id, action, resource_id, ip_address or get_client_ip()),
+    )
+
+
+def uniform_delay(start: float, minimum_seconds: float) -> None:
+    elapsed = time.perf_counter() - start
+    if elapsed < minimum_seconds:
+        time.sleep(minimum_seconds - elapsed)
 
 
 def get_conn():
@@ -188,6 +211,7 @@ def protected():
 
 @app.route("/login", methods=["POST"])
 def login():
+    start = time.perf_counter()
     data = request.json or {}
     username = (data.get("username") or "").strip()
     candidate_password = data.get("password") or ""
@@ -206,20 +230,28 @@ def login():
         attempts = failed_login_attempts(cursor, user_id)
         if attempts >= MAX_FAILED_ATTEMPTS:
             cursor.execute("UPDATE users SET locked=1 WHERE id=?", (user_id,))
+            audit_event(cursor, "login_locked", user_id, user_id, ip_address)
             conn.commit()
             conn.close()
+            uniform_delay(start, LOGIN_RESPONSE_DELAY_SECONDS)
             return jsonify({"success": False, "error": "Invalid credentials"}), 429
 
-    if user and verify_password(user[3], candidate_password):
+    stored_password = user[3] if user else DUMMY_BCRYPT_HASH
+    password_ok = verify_password(stored_password, candidate_password)
+
+    if user and password_ok:
         # Successful login unlocks account and clears failed-attempt history.
         cursor.execute("UPDATE users SET locked=0 WHERE id=?", (user[0],))
         clear_failed_logins(cursor, user[0])
+        audit_event(cursor, "login_success", user[0], user[0], ip_address)
         conn.commit()
 
         conn.close()
         session.clear()
         session.permanent = True
         session["user"] = username
+        session["user_id"] = user[0]
+        uniform_delay(start, LOGIN_RESPONSE_DELAY_SECONDS)
         return jsonify({"success": True, "username": user[1], "role": user[2]})
 
     if user:
@@ -228,8 +260,12 @@ def login():
         if attempts_after >= MAX_FAILED_ATTEMPTS:
             cursor.execute("UPDATE users SET locked=1 WHERE id=?", (user[0],))
         conn.commit()
+    else:
+        audit_event(cursor, "failed_login_unknown_user", None, None, ip_address)
+        conn.commit()
 
     conn.close()
+    uniform_delay(start, LOGIN_RESPONSE_DELAY_SECONDS)
     return jsonify({"success": False, "error": "Invalid credentials"}), 401
 
 @app.route("/register", methods=["POST"])
@@ -271,6 +307,7 @@ def register():
             "INSERT INTO users (email, username, password, role) VALUES (?, ?, ?, ?)",
             (email, username, hashed_password, role),
         )
+        audit_event(cursor, "register_success", None, cursor.lastrowid)
         conn.commit()
         return jsonify({"success": True, "role": role})
     except sqlite3.IntegrityError:
@@ -304,20 +341,18 @@ def forgot_password():
             """,
             (token_hash, expires_at, username),
         )
+        audit_event(cursor, "password_reset_requested", user[0], user[0])
         conn.commit()
 
     conn.close()
 
     # Uniform delay to reduce timing side-channel for user enumeration.
-    elapsed = time.perf_counter() - start
-    if elapsed < FORGOT_RESPONSE_DELAY_SECONDS:
-        time.sleep(FORGOT_RESPONSE_DELAY_SECONDS - elapsed)
+    uniform_delay(start, FORGOT_RESPONSE_DELAY_SECONDS)
 
     return jsonify(
         {
             "success": True,
             "message": "If the user exists, a reset token was generated.",
-            "reset_token": token,
             "expires_in_minutes": RESET_TOKEN_TTL_MINUTES,
         }
     )
@@ -347,7 +382,7 @@ def reset_password():
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT username
+        SELECT id, username
         FROM users
         WHERE reset_token_hash=?
           AND reset_token_expires_at IS NOT NULL
@@ -369,14 +404,23 @@ def reset_password():
         """,
         (hashed_new_password, token_hash),
     )
+    audit_event(cursor, "password_reset_completed", user[0], user[0])
     conn.commit()
     conn.close()
     return jsonify({"success": True})
 
 @app.route("/logout", methods=["POST"])
 def logout():
+    user_id = session.get("user_id")
+    if user_id is not None:
+        conn = get_conn()
+        cursor = conn.cursor()
+        audit_event(cursor, "logout", user_id, user_id)
+        conn.commit()
+        conn.close()
     session.clear()
     return jsonify({"success": True})
 
 if __name__ == "__main__":
-    app.run(debug=True, use_reloader=False, port=5000)
+    debug_enabled = os.getenv("FLASK_DEBUG", "0") == "1"
+    app.run(debug=debug_enabled, use_reloader=False, port=5000)
