@@ -1,25 +1,25 @@
-﻿# Raport â€” Break the Login: Atacarea È™i securizarea autentificÄƒrii
+﻿# Security-Kuromi
 
-## Titlu & Identificare
-- Nume proiect: Security-Kuromi
+## Title
+- Project Name: Security-Kuromi
 - Student: Diana-Ioana Dospinescu (username: diado2003 )
-- Hostname VM: [hostname]
 
-## Cuprins
-1. Introducere
-2. Setup mediu
-3. Implementare MVP
-4. Prezentare vulnerabilitÄƒÈ›i (mapping OWASP)
-5. Demonstrare atacuri (PoC)
-6. AnalizÄƒ impact
-7. Implementare fix
-8. Re-test (dovezi)
+
+## Content
+1. Introduction
+2. Setup 
+3. MVP Implementation
+4. Vulnerabilities Presentation (OWASP Mapping)
+5. Attack Demonstration (PoC)
+6. Impact Analysis
+7. Fixed Implementation
+8. Re-test Evidence
 9. Audit & Logging
-10. Concluzii
-11. Anexe (capturi, scripturi, commit hashes, video)
+10. Conclusions & Lessons Learned
+11. Annexes
 
 
-## 1. Introducere
+## 1. Introduction
 
 **Security-Kuromi** is a Flask API + Streamlit UI + SQLite DB application that has both backend and frontend. 
 
@@ -185,7 +185,7 @@ XResolution: 72.0
 YResolution: 72.0
 
 
-## 2. Setup mediu
+## 2. Setup 
 
  The application has two main components:
   - Flask backend, responsible for authentication, password reset, sessions and audit logging;
@@ -345,7 +345,7 @@ The backend logic is mostly in `backend/app.py`. The database setup is in `backe
 
 ### 3.1 Backend Routes
 
-_____________________________________________________________________
+---------------------------------------------------------------------
 | Method | Route              | What it does                        |
 | `POST` | `/register`        | creates a new account               |
 | `POST` | `/login`           | logs in a user                      |
@@ -394,13 +394,45 @@ CREATE TABLE IF NOT EXISTS audit_logs(
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 ```
+**Architecture Schema/Drawing:**
 
-Screenshots used for the MVP / DB part:
-- `from raw passwords to bcrypt.png`
-- `bcrypt passwords v02.png`
-- `dupa bcrypt + time insert pwd.png`
-- `added another user.png`
-- `the user i added - n bcrypt that pwd too.png`
+Security-Kuromi/
+│
+├── backend/
+│   ├── app.py
+│   ├── db.py
+│
+├── frontend/
+|   |__ pages/
+|   |   |___KeyLog.py
+|   |   |___Security_Tools.py
+|   |   |___Metadata.py
+|   |
+│   └── streamlit_app.py
+|
+|── malware/
+│   ├── keylogger.py
+|
+|── tools/
+│   ├── domain_whois.py
+│   ├── domain.py
+│   └── fast_port.py
+|   └── weak-attacks.py
+│
+├── attacks/
+│   ├── bruteforce.py
+│   ├── enumeration.py
+│   └── reset_attack.py
+|   └── weak-attacks.py
+|
+|___ forencics/
+|
+│
+└── database/
+|    └──users.db
+|
+|___ screenshots
+|   |__they are listed in the rapport
 
 ## 4. Vulnerabilities Presentation (OWASP Mapping)
 
@@ -496,8 +528,11 @@ Response: {"success": true}
 Why it works: the vulnerable version accepts a weak password instead of blocking it. Also, if the password is stored badly, opening the database is enough to expose the account password.
 
 Screenshots:
-- `from raw passwords to bcrypt.png`
-- `bcrypt passwords v02.png`
+- ![image](/Security-Kuromi/screenshots/added%20another%20user.png)
+- ![image](/Security-Kuromi/screenshots/bcrypt%20passwords%20v02.png)
+- ![image](/Security-Kuromi/screenshots/dupa%20bcrypt%20+%20time%20insert%20pwd.png)
+- ![image](/Security-Kuromi/screenshots/from%20raw%20passwords%20to%20bcrypt.png)
+
 
 ### 5.2 Brute Force PoC
 
@@ -526,7 +561,7 @@ Status: 200, Response: {"success": true, "username": "diana", "role": "USER"}
 Why it works: the vulnerable backend lets the attacker try password after password. There is no lockout, so the script can continue until it gets lucky.
 
 Screenshot:
-- `bruteforce v02.png`
+- ![image](/Security-Kuromi/screenshots/bruteforce%20v02.png)
 
 ### 5.3 User Enumeration PoC
 
@@ -589,7 +624,7 @@ status: 200
 Why it works: the reset token is predictable, so the attacker does not need access to the victim email.
 
 Screenshot:
-- `reset-attack v02.png`
+- ![image](/Security-Kuromi/screenshots/reset-attack%20v02.png)
 
 ### 5.5 Session Cookie PoC
 
@@ -632,7 +667,7 @@ master
 Current local commit:
 
 ```text
-8a121f9 Add raport README
+8a121f9 Add rapport README
 ```
 
 For final submission, I still need two clear versions:
@@ -716,7 +751,7 @@ token_hash = hash_reset_token(token)
 expires_at = (now_utc() + timedelta(minutes=RESET_TOKEN_TTL_MINUTES)).isoformat()
 ```
 
-The fixed version:
+**The fixed version:**
 - generates a random token
 - stores only the hash of the token
 - expires it after 15 minutes
@@ -758,7 +793,7 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=20)
 ```
 
-Why it helps: the session cookie is harder to steal or abuse.
+**Why it helps**: the session cookie is harder to steal or abuse.
 
 ## 8. Re-test Evidence
 
@@ -786,9 +821,8 @@ diana: $2b$...
 PASS
 ```
 
-Before: weak password accepted.
-
-After: weak password rejected and passwords are bcrypt hashes.
+**Before**: weak password accepted.
+**After**: weak password rejected and passwords are bcrypt hashes.
 
 ### 8.2 Brute Force Re-test
 
@@ -997,34 +1031,9 @@ PoC scripts included in `Security-Kuromi/attacks/`:
 - `enumeration.py`
 - `reset-attack.py`
 
-Video link:
-- `[add YouTube/Dropbox/Drive link here]`
-
-Suggested video timestamps:
-- `00:00 - 00:45` project setup and app overview
-- `00:45 - 02:30` vulnerable attacks
-- `02:30 - 04:30` fixes in code
-- `04:30 - 06:30` re-test after fixes
-- `06:30 - 07:00` conclusions
-
 Commit hashes:
-- vulnerable branch/tag: `[add vulnerable hash here]`
-- fixed branch/tag: `8a121f9` / `master`
+- vulnerable branch/tag: https://github.com/diado2003/Security-Kuromi.git; vulnerable
+- fixed branch/tag: https://github.com/diado2003/Security-Kuromi.git; main
 
----
 
-## Checklist obligatoriu (pentru predare)
-- [ ] Raport >= 20 pagini
-- [ ] Capturi cu username & hostname & prompt & date/time
-- [ ] Doua versiuni in repo: `vulnerable` si `fixed` (branch/tag)
-- [ ] Clip video 5-10 minute
-- [ ] VM evidence (hostname in screenshots)
-
----
-
-### Quick screenshot instructions
-- Terminal: include full prompt, command, output, `whoami` and `hostname` in the screenshot.
-- Burp/Postman: include raw request and raw response.
-
----
 
